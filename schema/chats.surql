@@ -87,7 +87,8 @@ Insert your token into this function before importing into SurrealDB.
 Returns:
     string: Bearer token.
 */
-DEFINE FUNCTION IF NOT EXISTS fn::get_openai_token() {
+DEFINE FUNCTION IF NOT EXISTS fn::get_openai_token($token: string) {
+    RETURN string::concat('Bearer ', $token);
 };
 
 /* OpenAI embeddings complete.
@@ -99,7 +100,7 @@ Args:
 Returns:
     array<float>: Array of embeddings.
 */
-DEFINE FUNCTION IF NOT EXISTS fn::embeddings_complete($embedding_model: string, $input: string) {
+DEFINE FUNCTION IF NOT EXISTS fn::embeddings_complete($embedding_model: string, $input: string, $token: string) {
     RETURN http::post(
         "https://api.openai.com/v1/embeddings",
         {
@@ -107,19 +108,19 @@ DEFINE FUNCTION IF NOT EXISTS fn::embeddings_complete($embedding_model: string, 
             "input": $input
         },
         {
-            "Authorization": fn::get_openai_token()
+            "Authorization": fn::get_openai_token($token)
         }
-    )["data"][0]["embedding"]
+    )["data"][0]["embedding"];
 };
 
 /* Search for documents using embeddings.
 
 Args:
-    embeddings_model: Embedding model from OpenAI.
-    input: User input.
+    input_vector: Embedding vector of the input.
+    threshold: Similarity threshold to retrieve documents.
 
 Returns:
-    array<float>: Array of embeddings.
+    object: Search results and metadata.
 */
 DEFINE FUNCTION IF NOT EXISTS fn::search_for_documents($input_vector: array<float>, $threshold: float) {
    LET $results = (
@@ -140,6 +141,7 @@ DEFINE FUNCTION IF NOT EXISTS fn::search_for_documents($input_vector: array<floa
      threshold: $threshold
    };
 };
+
 
 
 /* Get prompt for RAG.
@@ -216,8 +218,8 @@ Args:
 Returns:
     string: Response from LLM.
 */
-DEFINE FUNCTION IF NOT EXISTS fn::surreal_rag($llm: string, $input: string, $threshold: float, $temperature: float) {
-    LET $input_vector = fn::embeddings_complete("text-embedding-ada-002", $input);
+DEFINE FUNCTION IF NOT EXISTS fn::surreal_rag($llm: string, $input: string, $threshold: float, $temperature: float, $token: string) {
+    LET $input_vector = fn::embeddings_complete("text-embedding-ada-002", $input, $token);
     LET $search_results = fn::search_for_documents($input_vector, $threshold);
     
     LET $context = array::join($search_results.results[*].text, "\n\n");
@@ -241,7 +243,7 @@ Args:
     content: Sent message content.
 
 Returns:
-    oject: Content and timestamp.
+    object: Content and timestamp.
 */
 DEFINE FUNCTION IF NOT EXISTS fn::create_message(
     $chat_id: record<chat>, 
@@ -269,7 +271,6 @@ DEFINE FUNCTION IF NOT EXISTS fn::create_message(
         timestamp: $timestamp
     };
 };
-
 /* Create a user message.
 
 Args:
@@ -291,7 +292,7 @@ Args:
 Returns:
     object: Content and timestamp.
 */
-DEFINE FUNCTION IF NOT EXISTS fn::create_system_message($chat_id: record<chat>) {
+DEFINE FUNCTION IF NOT EXISTS fn::create_system_message($chat_id: record<chat>, $token: string) {
     LET $last_user_message_content = (
         SELECT
             out.content AS content,
@@ -302,7 +303,7 @@ DEFINE FUNCTION IF NOT EXISTS fn::create_system_message($chat_id: record<chat>) 
         FETCH out
     ).content;
 
-    LET $rag_response = fn::surreal_rag("gpt-3.5-turbo", $last_user_message_content, 0.5, 0.5);
+    LET $rag_response = fn::surreal_rag("gpt-3.5-turbo", $last_user_message_content, 0.5, 0.5, $token);
     
     RETURN fn::create_message($chat_id, "system", $rag_response.answer);
 };
