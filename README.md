@@ -18,6 +18,8 @@ The backend is powered by a FastAPI server, with Jinja2 handling template render
 
 2. **Python 3.11**: We use [uv](https://docs.astral.sh/uv/) to manage dependencies.
 
+3. **SurrealDB Python SDK**: The [SurrealDB Python SDK](https://github.com/surrealdb/surrealdb.py/tree/main) is currently in beta. To install the dependency, please ensure you have `rust` installed on your system.
+
 ### Installation
 
 1. Clone the repository.
@@ -76,20 +78,6 @@ Insert the dataset into SurrealDB:
 
 ```bash
 surreal-insert
-```
-
-### Running a RAG Operation
-
-Access the SurrealDB shell using SurrealQL:
-
-```bash
-make surreal-sql
-```
-
-Example of a RAG query:
-
-```sql
-RETURN fn::surreal_rag("gpt-3.5-turbo", "Who is the greatest basketball player of all time?", 0.85, 0.5);
 ```
 
 ### Starting the Chat Application
